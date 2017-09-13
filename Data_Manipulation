@@ -1,5 +1,11 @@
 #will be used to list steps taken to get R to the format we need to run BLGR package ML algorithms
 
+#format we need:
+  #pheno.csv
+    ID  Trait Trait.. etc, no missing values, IDs match those in geno.csv average phenotypic values of same genotypes
+  #geno.csv
+    ID  Locus Locus Locus with genotypes in the matrix... Lets code them as 0, 0.5, or 1 to standardize it
+   
 
 #first data set will be 1. maize_MP_lehermeier: https://www.ncbi.nlm.nih.gov/pubmed/?term=Lehermeier+2014+maize+genomic+selection. Traits: days to tassel, height, dry yield
 
