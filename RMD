@@ -1,0 +1,1864 @@
+---
+title: "ML"
+author: "aey"
+date: "August 23, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#require("knitr")
+opts_knit$set(root.dir = "C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+```
+
+
+
+```{r}
+library(tidyr)
+library(tidyverse)
+library(knitr)
+library(genefilter)
+library(cowplot)
+library(pheatmap)
+library(ggjoy)
+library(ggrepel)
+library(devtools)
+library(broom)
+library(gplots)
+library(RColorBrewer)
+library(ggpubr)
+library(BGLR)
+```
+
+
+Import data
+
+```{r}
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+for (i in 1:18){
+  assign(paste0("Gen_Chr", i), read_delim(paste0("fastPhase_Imputed_files_for_GWAS_Chr_", i, ".txt"), delim = "\t"))
+}
+
+for (i in 1:18){
+  assign(paste0("Conv_Chr", i), read_delim(paste0("SNP_Info_Chr", i, ".txt"), delim = "\t"))
+}
+View(head(Conv_Chr1))
+
+Morph_trait <- read_delim("BLUPs_7_Morph_Traits_Assoc_for_GWAS_sorted_Anchored.txt", delim = "\t")
+#View(head(Morph_trait))
+#View(head(Gen_Chr1))
+
+
+
+```
+
+
+```{r}
+#combine all chromosomes into same table
+
+
+Geno <- Reduce(function(x, y) merge(x, y, all=TRUE), list(Gen_Chr1, Gen_Chr2, Gen_Chr3, Gen_Chr4, Gen_Chr5, Gen_Chr6, Gen_Chr7, Gen_Chr8, Gen_Chr9, Gen_Chr10, Gen_Chr11, Gen_Chr12, Gen_Chr13, Gen_Chr14, Gen_Chr15, Gen_Chr16, Gen_Chr17, Gen_Chr18))
+
+
+
+
+dim(Gen_Chr1)
+dim(Geno)
+dim(Morph_trait)
+View(head(Geno))
+View(head(Gen_Chr10))
+identical(Gen_Chr1, Gen_Chr10)
+length(unique(colnames(Geno)))
+
+Conv_all <- Reduce(function(x, y) merge(x, y, all = TRUE), list(Conv_Chr1, Conv_Chr2, Conv_Chr3, Conv_Chr4, Conv_Chr5, Conv_Chr6, Conv_Chr7, Conv_Chr8, Conv_Chr9, Conv_Chr10, Conv_Chr11, Conv_Chr12, Conv_Chr13, Conv_Chr14, Conv_Chr15, Conv_Chr16, Conv_Chr17, Conv_Chr18))
+
+dim(Conv_all)
+View(tail(Conv_all))
+View(Conv_Chr1)
+
+#Geno_sort <- Geno[with(Geno, order(Taxa)), ]
+
+Conv_all_sort <- Conv_all[with(Conv_all, or),] 
+View(head(Conv_all_sort))  
+
+```
+
+Make pheno.cvs data frame, removing any rows with missing data
+```{r}
+View(head(Morph_trait))
+Morph_trait_select <- Morph_trait %>%
+  select(MAP_ID, Plant_Height, Anthesis_Date_8632, Standability)
+View(Morph_trait_select)
+
+Remove_From_Geno <- Morph_trait_select %>%
+  filter(grepl("N", Plant_Height) | grepl("N", Anthesis_Date_8632) | grepl("N", Standability)) 
+
+#%>%
+ # filter(grepl("N", Anthesis_Date_8632)) %>%
+ # filter(grepl("N", Standability))
+
+dim(Remove_From_Geno)
+
+Morph_trait_full <- Morph_trait_select %>%
+  filter(!grepl("N", Plant_Height)) %>%
+  filter(!grepl("N", Anthesis_Date_8632)) %>%
+  filter(!grepl("N", Standability))
+
+dim(Morph_trait_select)
+dim(Morph_trait_full)
+```
+
+Remove corresponding missing data from Geno file
+
+```{r}
+#Geno_full <- Geno %>%
+  #filter(-Remove_From_Geno$MAP_ID)
+Geno_full <- subset(Geno, !(Taxa %in% Remove_From_Geno$MAP_ID))
+
+dim(Geno_full)
+View(Geno_full[1:10,1:10])
+
+Morph_sort <- Morph_trait_full[with(Morph_trait_full, order(MAP_ID)), ]
+
+Geno_sort <- Geno_full[with(Geno_full, order(Taxa)), ]
+
+identical(Geno_sort$Taxa, Morph_sort$MAP_ID)
+
+View(Geno_sort[,1])
+View(Morph_sort[,1])
+View(Geno_sort[1:10,1:10])
+
+gen_names <- Geno_full$Taxa
+morph_names <- Morph_trait_full$MAP_ID
+
+identical(gen_names, morph_names)
+
+#Now we got Morph_sort and Geno_sort exactly how we need them.... I think, need to look into paper and see how to see if two data points were split across growing seasons
+View(Morph_trait_select)
+View(Morph_trait)
+
+Check_unique <- Morph_sort %>%
+  mutate(Cut = gsub("\\.[0-9][0-9]$", "", MAP_ID))
+
+View(Check_unique$Cut)
+
+length(unique(Check_unique$Cut))
+#output is 66, nice exactly what paper said, 66 lines, 540 individuals
+```
+
+Export Geno_sort and Morph_sort as csv
+
+```{r}
+write.table(Morph_sort, file = "pheno.csv", sep = ",")
+write.table(Geno_sort, file = "geno.csv", sep = ",")
+```
+
+Check for missing genotype values
+
+```{r}
+x <-sapply(Geno_sort[,-1], is.numeric)
+
+any(x==FALSE)
+
+X=scale(Geno_sort[,-1])
+?scale
+View(Geno_sort[1:10,1:10])
+```
+
+```{r}
+x <- c(seq(1:538))
+cbind(ID = Morph_sort$MAP_ID,Geno_sort)
+View()
+```
+
+```{r}
+X <- read.csv("pheno.csv", header = T)
+View(head(X))
+rownames(X) <- X[,1]
+X[,1] <- NULL
+
+X=scale(X)
+?row.names
+View(X)
+y=X[, names(X)[1]]
+y
+
+yhat <- data.frame(cbind(y, yhat = 0))
+
+View(yhat)
+yhat$yhat <- as.numeric(yhat$yhat)
+row.names(yhat) <- row.names(X)
+
+```
+
+
+
+```{r}
+Y <- read.csv("pheno.csv", header = T)
+X[,1]
+rownames(Y) <- X[,1]
+Y[,1] <- NULL
+```
+
+```{r}
+x <- c(1,4,2,1,5,5,3,2,1,5,5,1,2,3,4,5,2,4,3,2,3,5,5,2,1,2,2,1,3,3,4,1,4,5,5,3,4,4,5,1,5,1,1,3,1,2,3,4,1,3,2,5,5,5,1,3,1,2,1,4,3,5,5,3,2,2,2,2,3,3,2,4,1,2,3,4,4,4,4,4,3,5,1,2,3,2,2,1,2,3,4,4,2,2,1,4,1,3,5,3,1)
+length(x)
+
+y <- c("cv_1",cv_2,cv_3,cv_4,cv_5,cv_6,cv_7,cv_8,cv_9,cv_10,cv_11,cv_12,cv_13,cv_14,cv_15,cv_16,cv_17,cv_18,cv_19,cv_20,cv_21,cv_22,cv_23,cv_24,cv_25,cv_26,cv_27,cv_28,cv_29,cv_30,cv_31,cv_32,cv_33,cv_34,cv_35,cv_36,cv_37,cv_38,cv_39,cv_40,cv_41,cv_42,cv_43,cv_44,cv_45,cv_46,cv_47,cv_48,cv_49,cv_50,cv_51,cv_52,cv_53,cv_54,cv_55,cv_56,cv_57,cv_58,cv_59,cv_60,cv_61,cv_62,cv_63,cv_64,cv_65,cv_66,cv_67,cv_68,cv_69,cv_70,cv_71,cv_72,cv_73,cv_74,cv_75,cv_76,cv_77,cv_78,cv_79,cv_80,cv_81,cv_82,cv_83,cv_84,cv_85,cv_86,cv_87,cv_88,cv_89,cv_90,cv_91,cv_92,cv_93,cv_94,cv_95,cv_96,cv_97,cv_98,cv_99,cv_100)
+```
+
+```{r}
+cvs <- read.csv('CVFs.csv', row.names = 1)
+View(head(cvs))
+rownames(cvs) <- cvs[,1]
+check <- cvs %>%
+  select(cvs[,1])
+View(check)
+
+
+
+```
+
+
+
+```{r}
+library(BGLR)
+to.read = load("C:/Users/aeyocca/Desktop/full_model.RData")
+to.read
+fm
+?residuals
+residuals(fm)
+readBinMat("C:/Users/aeyocca/Desktop/full_model.RData", byrow = TRUE)
+demo(BA)
+residuals(fit_BA)
+fm$weights
+x <- fm$ETA[[1]]$b
+View(head(x))
+```
+
+Lets try to make this plot: estimated marker effects
+```{r}
+length(x)
+df_bHat <- as.data.frame(x)
+View(head(df_bHat))
+names <- rownames(df_bHat)
+rownames(df_bHat) <- NULL
+df_bHat <- cbind("rs" = names,df_bHat)
+
+df_bHat <- df_bHat %>%
+  rename(Effect = "x")
+
+View(head(Conv_Chr1))
+MarkEff_Chr1 <- merge(df_bHat, Conv_Chr1)
+View(head(MarkEff_Chr1))
+dim(MarkEff_Chr1)
+
+
+bHat <- fm$ETA[["b"]]
+SD.bHat <- fm$ETA[["SD.b"]]
+
+transform(MarkEff_Chr1, pos = as.numeric(pos))
+MarkEff_Chr1_stuff <- MarkEff_Chr1[as.numeric(MarkEff_Chr1$pos),]
+sapply(MarkEff_Chr1, mode)
+sapply(MarkEff_Chr1, class)
+MarkEff_Chr1 <- MarkEff_Chr1 %>%
+  rename(Position = "pos")
+
+MarkEff_Chr1_scat <- MarkEff_Chr1 %>%
+  ggplot(aes(x = Position, y = Effect^2)) +
+  geom_point() +
+  xlab("Position") +
+  ylab("Squared Marker Effect")
+
+MarkEff_Chr1_scat
+```
+
+Make graph for each Chromosome
+
+```{r}
+#for (i in 1:18){
+#  assign(paste0("Conv_Chr", i), read_delim(paste0("SNP_Info_Chr", i, #".txt"), delim = "\t"))
+#}
+
+Marker_effects <- merge(df_bHat, Conv_Chr1)
+View(head(Marker_effects))
+View(head(Conv_Chr10))
+
+for (i in 1:1){
+  Marker_effects <- merge(df_bHat, get(paste0("Conv_Chr", i)))
+  #View(head(Marker_effects))
+  assign(paste0("MarkEff_Chr", i, "_scat"), Marker_effects %>%
+    ggplot(aes(x = pos, y = Effect^2)) +
+     geom_point() +
+     xlab("Position") +
+     ylab("Sqr Mark Eff") +
+     ggtitle(paste0("Chromosome", i))) +
+     coord_cartesian(ylim = c(0, 1), expand = FALSE)
+  
+} 
+
+MarkEff_Chr1_scat
+?get
+
+x <- 1:10
+get("Conv_Chr10")
+Conv_Chr10
+
+View(head(df_bHat_all))
+dim(df_bHat_all)
+
+df_bHat_all <- merge(df_bHat, Conv_all)
+
+MarkEff_facet <- df_bHat_all %>%
+  ggplot(aes(x = pos, y = Effect^2)) +
+     geom_point() +
+     xlab("Position") +
+     ylab("Sqr Mark Eff") +
+     scale_y_continuous(limits = c(0,0.00003)) +
+     facet_wrap(~chrom)
+     
+
+
+MarkEff_all_scat <- plot_grid(MarkEff_Chr1_scat, MarkEff_Chr2_scat, MarkEff_Chr3_scat, MarkEff_Chr4_scat, MarkEff_Chr5_scat, MarkEff_Chr6_scat, MarkEff_Chr7_scat, MarkEff_Chr8_scat, MarkEff_Chr9_scat, MarkEff_Chr10_scat, MarkEff_Chr11_scat, MarkEff_Chr12_scat, MarkEff_Chr13_scat, MarkEff_Chr14_scat, MarkEff_Chr15_scat, MarkEff_Chr16_scat, MarkEff_Chr17_scat, MarkEff_Chr18_scat)
+
+
+?ggplot_gtable
+# MarkEff_all_scat
+
+```
+
+
+
+
+```{r}
+View(Geno[10,20])
+View(Geno_sort[1:10,1:20])
+dim(Geno_sort)
+
+test_df <- c(1:540) %>%
+  as.data.frame()
+dim(test_df)
+View(head(test_df))
+class(test)
+
+class(Geno_sort[,4])
+
+test$TP535907 <- Geno_sort$TP535907
+  
+  
+?select
+
+test <- c("Taxa", "TP535907")
+print(Geno_sort$Taxa)
+
+test_dfloop <- data.frame(
+View(test_dfloop)
+
+#define a function that creates empty data frame with specified number of rows / columns, need it to have 540 rows so I can add to it in the loop
+#on second thought, not really necessary, just pull Taxa names from original Geno_sort
+create_empty_table <- function(num_rows, num_cols) {
+    frame <- data.frame(matrix(NA, nrow = num_rows, ncol = num_cols))
+    return(frame)
+}
+
+test_dfloopfun <- create_empty_table(540, 0)
+View(test_dfloopfun)
+
+#Next, need to create a string with all rs names
+rs_names <- colnames(Geno_sort)
+#remove "Taxa" from the vector
+rs_names <- rs_names[-1]
+
+assign(paste0('Geno_sort_', '1'), Geno_sort[,1])
+
+Geno_sort_1%>%
+  as.data.frame()
+View(Geno_sort_1[1:10, 1:20]) 
+rm(Geno_sort_1, Geno_sort_2)
+
+for (j in 1:2) {
+  assign(paste0('Geno_sort_', j), Geno_sort[,1])
+  assign(paste0('Geno_sort_', j), get(paste0('Geno_sort_', j)) %>%
+    as.data.frame())
+  
+  for (i in rs_names) {
+    assign(paste0(get(paste0('Geno_sort_', j)), '[[', i, ']]'), Geno_sort[[i]])
+  }
+}
+
+
+View(Geno_sort_1)
+
+length(rs_names)
+
+  for (i in 1:2) {
+    eval(as.name(paste0('Geno_sort_', 1, '[[', i, ']]'))), eval(parse(text=(paste0('Geno_', 'sort', '[[rs_names[', i, ']]]'))))
+  }
+print(eval(parse(text=(paste0('Geno_sort[[rs_names[', 1, ']]]'))))
+
+
+colnames(Geno_sort_2)[1] <- "Taxas"
+colnames(Geno_sort_1)[1] <- "Taxa"
+View(Geno_sort_1)
+
+#works below  
+for (i in 1:2) {
+    Geno_sort_1[["Taxas"]] <- Geno_sort_2[["Taxas"]]
+  }
+View(Geno_sort_1)
+
+?as.name
+
+for (i in 1:2) {
+    print(eval(as.name(paste0('Geno_sort_', 1)))) 
+  }
+
+
+for (i in 1:2) {
+    print(Geno_sort[[rs_names[i]]])
+}
+
+is.name(Geno_sort_1)
+View(Geno_sort_1)
+
+for (i in ncol(Geno_sort)) {
+  if (i > 1){
+    Geno_permute <- Geno_sort %>%
+      pull
+  }
+}
+
+```
+
+```{r}
+#Next, need to create a string with all rs names
+rs_names <- colnames(Geno_sort)
+#remove "Taxa" from the vector
+rs_names <- rs_names[-1]
+
+#make new df with Taxa as first column
+for (j in 1:2) {
+  assign(paste0('Geno_sort_', j), Geno_sort[,1])
+  assign(paste0('Geno_sort_', j), get(paste0('Geno_sort_', j)) %>%
+    as.data.frame())
+
+#loop through each item in rs_names, careful, there are 16,669 of them
+  for(i in rs_names)
+  
+#lets pull column out and shuffle, store in new variable for now
+    Column <- Geno_sort[["TP535907"]] %>%
+      as.data.frame()
+    
+    Column_shuffle <- Column[sample(nrow(Column)),] %>%
+      as.data.frame()
+    colnames(Column_shuffle)[1] <- "TP535907"
+    
+z <- cbind(Column, Column_shuffle)   
+
+    
+    
+    View(Column)      
+View(Column_shuffle)  
+  
+sum(Column)
+sum(Column_shuffle)
+Column == Column_shuffle
+```
+
+Test this 
+```{r}
+test_rs_names <- rs_names[1:2]
+test_rs_names
+
+
+for (j in 1:2){
+  assign(paste0('Geno_perm_', j), Geno_sort[,1])
+  assign(paste0('Geno_perm_', j), get(paste0('Geno_perm_', j)) %>%
+           as.data.frame())
+  
+  for (i in test_rs_names) {
+    Column <- eval(parse(text=(paste0('Geno_sort[["', i, '"]]')))) %>%
+      as.data.frame()
+    Column_shuffle <- Column[sample(nrow(Column)),] %>%
+      as.data.frame()
+    colnames(Column_shuffle)[1] <- i
+  
+    cbind(eval(as.name(paste0('Geno_perm_', j))), Column_shuffle)
+    rm(Column,Column_shuffle)
+    
+  }
+}
+View(Geno_perm_1)
+
+
+#WORKS!!!!
+for (j in 1:100){
+  Geno_perm_current <- paste0('Geno_perm_', j)
+  Geno_perm_current <- Geno_sort[,1]
+  Geno_perm_current <- Geno_perm_current %>%
+    as.data.frame()
+  
+  for (i in rs_names) {
+    Column <- eval(parse(text=(paste0('Geno_sort[["', i, '"]]')))) %>%
+      as.data.frame()
+    Column_shuffle <- Column[sample(nrow(Column)),] %>%
+      as.data.frame()
+    colnames(Column_shuffle)[1] <- i
+  
+    Geno_perm_current <- cbind(Geno_perm_current, Column_shuffle)
+    assign(paste0('Geno_perm_', j), Geno_perm_current)
+    rm(Column,Column_shuffle)
+    
+  }
+  rm(Geno_perm_current)
+}
+View(Geno_perm_1[1:10, 2:20])
+dim(Geno_perm_2)
+
+?cbind
+```
+
+Save all permutations as .csv files in documents/.../Switchgrass SNPs/ folder which now is current directory, could have done this within earlier loop but just going to do it now
+```{r}
+#reference script
+#write.table(Geno_sort, file = "geno.csv", sep = ",")
+
+for (i in 1:100){
+  geno_save <- paste0('Geno_perm_', i)
+  file_name <- paste0('genoperm_', i, '.csv')
+  write.table(geno_save, file = file_name, sep = ",")
+  rm(geno_save, file_name)
+  }
+
+```
+
+
+Write script to submit to hpcc
+```{r}
+
+
+#put all fastPhase..... files for each chromosome in 00_RawData/ folder
+#set working directory to swgrs_DP_Lipka folder
+#for the test:
+#setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+setwd("/mnt/home/yoccaala/03_GenomicSelection")
+
+library(tidyverse)
+
+for (i in 1:18){
+  assign(paste0("Gen_Chr", i), read_delim(paste0("00_RawData/fastPhase_Imputed_files_for_GWAS_Chr_", i, ".txt"), delim = "\t"))
+}
+
+Geno <- Reduce(function(x, y) merge(x, y, all=TRUE), list(Gen_Chr1, Gen_Chr2, Gen_Chr3, Gen_Chr4, Gen_Chr5, Gen_Chr6, Gen_Chr7, Gen_Chr8, Gen_Chr9, Gen_Chr10, Gen_Chr11, Gen_Chr12, Gen_Chr13, Gen_Chr14, Gen_Chr15, Gen_Chr16, Gen_Chr17, Gen_Chr18))
+
+Morph_trait <- read_delim("00_RawData/BLUPs_7_Morph_Traits_Assoc_for_GWAS_sorted_Anchored.txt", delim = "\t")
+
+Morph_trait_select <- Morph_trait %>%
+  select(MAP_ID, Plant_Height, Anthesis_Date_8632, Standability)
+#View(Morph_trait_select)
+
+Remove_From_Geno <- Morph_trait_select %>%
+  filter(grepl("N", Plant_Height) | grepl("N", Anthesis_Date_8632) | grepl("N", Standability))
+
+View(Remove_From_Geno)
+
+Geno_full <- subset(Geno, !(Taxa %in% Remove_From_Geno$MAP_ID))
+Geno_sort <- Geno_full[with(Geno_full, order(Taxa)), ]
+
+rs_names <- colnames(Geno_sort)
+
+for (j in 1:100){
+  Geno_perm_current <- paste0('Geno_perm_', j)
+  Geno_perm_current <- Geno_sort[,1]
+  Geno_perm_current <- Geno_perm_current %>%
+    as.data.frame()
+  
+  for (i in rs_names) {
+    Column <- eval(parse(text=(paste0('Geno_sort[["', i, '"]]')))) %>%
+      as.data.frame()
+    Column_shuffle <- Column[sample(nrow(Column)),] %>%
+      as.data.frame()
+    colnames(Column_shuffle)[1] <- i
+  
+    Geno_perm_current <- cbind(Geno_perm_current, Column_shuffle)
+    assign(paste0('Geno_perm_', j), Geno_perm_current)
+    rm(Column,Column_shuffle)
+    
+  }
+  rm(Geno_perm_current)
+}
+
+setwd("01_Data")
+
+
+for (i in 1:100){
+  geno_save <- paste0('Geno_perm_', i)
+  file_name <- paste0('genoperm_', i, '.csv')
+  write.table(geno_save, file = file_name, sep = ",")
+  rm(geno_save, file_name)
+}
+
+
+
+```
+
+
+HPCC taking  like forever so going to run it all in here, but only do like 5 at a time in the loop
+
+```{r}
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+
+library(tidyverse)
+
+for (i in 1:18){
+  assign(paste0("Gen_Chr", i), read_delim(paste0("fastPhase_Imputed_files_for_GWAS_Chr_", i, ".txt"), delim = "\t"))
+}
+
+Geno <- Reduce(function(x, y) merge(x, y, all=TRUE), list(Gen_Chr1, Gen_Chr2, Gen_Chr3, Gen_Chr4, Gen_Chr5, Gen_Chr6, Gen_Chr7, Gen_Chr8, Gen_Chr9, Gen_Chr10, Gen_Chr11, Gen_Chr12, Gen_Chr13, Gen_Chr14, Gen_Chr15, Gen_Chr16, Gen_Chr17, Gen_Chr18))
+
+Morph_trait <- read_delim("BLUPs_7_Morph_Traits_Assoc_for_GWAS_sorted_Anchored.txt", delim = "\t")
+
+Morph_trait_select <- Morph_trait %>%
+  select(MAP_ID, Plant_Height, Anthesis_Date_8632, Standability)
+#View(Morph_trait_select)
+
+Remove_From_Geno <- Morph_trait_select %>%
+  filter(grepl("N", Plant_Height) | grepl("N", Anthesis_Date_8632) | grepl("N", Standability))
+
+dim(Remove_From_Geno)
+
+Geno_full <- subset(Geno, !(Taxa %in% Remove_From_Geno$MAP_ID))
+Geno_sort <- Geno_full[with(Geno_full, order(Taxa)), ]
+
+rs_names <- colnames(Geno_sort)
+rs_names <- rs_names[-1]
+
+for (j in 2:90){
+  Geno_perm_current <- paste0('Geno_perm_', j)
+  Geno_perm_current <- Geno_sort[,1]
+  Geno_perm_current <- Geno_perm_current %>%
+    as.data.frame()
+  
+  for (i in rs_names) {
+    Column <- eval(parse(text=(paste0('Geno_sort[["', i, '"]]')))) %>%
+      as.data.frame()
+    Column_shuffle <- Column[sample(nrow(Column)),] %>%
+      as.data.frame()
+    colnames(Column_shuffle)[1] <- i
+  
+    Geno_perm_current <- cbind(Geno_perm_current, Column_shuffle)
+    assign(paste0('Geno_perm_', j), Geno_perm_current)
+    rm(Column,Column_shuffle)
+    
+  }
+  write.table(Geno_perm_current, file = paste0('genoperm_', j, '.csv'), sep = ",")
+  rm(Geno_perm_current)
+  rm(list = paste0('Geno_perm_', j))
+  }
+
+for (i in 91:100) {
+  rm(list = paste0('Geno_perm_', i))
+}
+?rm
+
+for (i in 1:2) {
+print(get(paste0('Geno_perm_', i)))
+}
+?sample
+#ran- 1:2 took around 1 minute. 3-10, 11:20, 21:30, 31:40, 41:50.
+#Better safe than sorry, dont want computer to crash
+
+#setwd("01_Data")
+
+#Awesome...... Saving doesn't work, saves it as a string
+
+for (i in 1:70){
+  geno_save <- paste0('Geno_perm_', i)
+  file_name <- paste0('genoperm_', i, '.csv')
+  write.table(geno_save, file = file_name, sep = ",")
+  rm(geno_save, file_name)
+}
+
+
+```
+
+```{r}
+library(BGLR)
+library(tidyverse)
+load("C:/Users/aeyocca/Desktop/full_model.RData")
+#creates object fm, not sure how to assign that to a variable, if I try it just assigns the string "fm"... Lets try this
+#rm(fm)
+#assign(jimbob,load("C:/Users/aeyocca/Desktop/full_model.RData")) NOPE
+#awesome, this works below... hmmm, I guess I could load it as fm, extract the info I need named as something, then delete fm so this step below isnt necessary.
+#y <- fm
+#rm(y)
+
+fm #I guess stands for full matrix
+?residuals
+residuals(fm)
+#readBinMat("C:/Users/aeyocca/Desktop/full_model.RData", byrow = TRUE)
+#demo(BA)
+#residuals(fit_BA)
+fm$weights
+
+View(head(x))
+#x is numeric but can convert to data frame with as.data.frame() with rownames as rs names and the only column as what I believe are the weights of each genomic loci. I would like to know EXACTLY what they are so I can explain to other people
+
+class(x)
+length(x)
+x <- fm$ETA[[1]]$b
+df_bHat <- as.data.frame(x)
+View(head(df_bHat))
+names <- rownames(df_bHat)
+rownames(df_bHat) <- NULL
+df_bHat <- cbind("rs" = names,df_bHat)
+
+df_bHat <- df_bHat %>%
+  rename(Effect = "x")
+
+
+
+
+
+#View(head(df_bHat))
+#View(head(Conv_Chr1))
+#MarkEff_Chr1 <- merge(df_bHat, Conv_Chr1)
+#View(head(MarkEff_Chr1))
+#dim(MarkEff_Chr1)
+
+
+#bHat <- fm$ETA[["b"]]
+#SD.bHat <- fm$ETA[["SD.b"]]
+#
+#transform(MarkEff_Chr1, pos = as.numeric(pos))
+#MarkEff_Chr1_stuff <- MarkEff_Chr1[as.numeric(MarkEff_Chr1$pos),]
+#sapply(MarkEff_Chr1, mode)
+#sapply(MarkEff_Chr1, class)
+#MarkEff_Chr1 <- MarkEff_Chr1 %>%
+#  rename(Position = "pos")
+#
+#MarkEff_Chr1_scat <- MarkEff_Chr1 %>%
+#  ggplot(aes(x = Position, y = Effect^2)) +
+#  geom_point() +
+#  xlab("Position") +
+#  ylab("Squared Marker Effect")
+
+#MarkEff_Chr1_scat
+
+
+#for (i in 1:18){
+#  assign(paste0("Conv_Chr", i), read_delim(paste0("SNP_Info_Chr", i, #".txt"), delim = "\t"))
+#}
+
+#Marker_effects <- merge(df_bHat, Conv_Chr1)
+#View(head(Marker_effects))
+#View(head(Conv_Chr10))
+#
+#for (i in 1:1){
+#  Marker_effects <- merge(df_bHat, get(paste0("Conv_Chr", i)))
+#  #View(head(Marker_effects))
+#  assign(paste0("MarkEff_Chr", i, "_scat"), Marker_effects %>%
+#    ggplot(aes(x = pos, y = Effect^2)) +
+#     geom_point() +
+#     xlab("Position") +
+#     ylab("Sqr Mark Eff") +
+#     ggtitle(paste0("Chromosome", i))) +
+#     coord_cartesian(ylim = c(0, 1), expand = FALSE)
+#  
+#} 
+
+#MarkEff_Chr1_scat
+#?get
+
+#x <- 1:10
+#get("Conv_Chr10")
+#Conv_Chr10
+
+for (i in 1:18){
+  assign(paste0("Conv_Chr", i), read_delim(paste0("SNP_Info_Chr", i, ".txt"), delim = "\t"))
+}
+
+Conv_all <- Reduce(function(x, y) merge(x, y, all = TRUE), list(Conv_Chr1, Conv_Chr2, Conv_Chr3, Conv_Chr4, Conv_Chr5, Conv_Chr6, Conv_Chr7, Conv_Chr8, Conv_Chr9, Conv_Chr10, Conv_Chr11, Conv_Chr12, Conv_Chr13, Conv_Chr14, Conv_Chr15, Conv_Chr16, Conv_Chr17, Conv_Chr18))
+
+Conv_all <- Conv_all %>%
+  as.data.frame()
+
+write.table(Conv_all, file = "Conv_all", sep = ",")
+rm(Conv_all)
+
+#here is loading convert df this is sorted by rs names first column, then chrom and pos
+Conv_all <- read.csv('Conv_all')
+View(head(Conv_all))
+
+#prove they are sorted by rs
+#Conv_all_sorted <- Conv_all[order('rs'),]
+#dim(Conv_all_sort)
+#dim(Conv_all)
+#?sort
+#View(Conv_all_sorted)
+Conv_all_sort <- Conv_all[with(Conv_all, rs),]
+identical(Conv_all, Conv_all_sort)
+#returns true so we are good
+#Hmm, I think I might just make this a csv file and upload it, well it doesn't really take up that much time, fudge it make the file
+
+View(head(df_bHat_all))
+dim(df_bHat_all)
+
+df_bHat_all <- merge(df_bHat, Conv_all)
+
+#then loop 2:100, load fm, extract to df_bhat_ Loop variable, looks like merging df_bHat and Conv_all sorts them, hmm, just load and merge I think will work
+
+MarkEff_facet <- df_bHat_all %>%
+  ggplot(aes(x = pos, y = Effect^2)) +
+     geom_point() +
+     xlab("Position") +
+     ylab("Sqr Mark Eff") +
+     scale_y_continuous(limits = c(0,0.00003)) +
+     facet_wrap(~chrom)
+     
+
+
+#MarkEff_all_scat <- plot_grid(MarkEff_Chr1_scat, MarkEff_Chr2_scat, MarkEff_Chr3_scat, MarkEff_Chr4_scat, MarkEff_Chr5_scat, MarkEff_Chr6_scat, MarkEff_Chr7_scat, MarkEff_Chr8_scat, MarkEff_Chr9_scat, MarkEff_Chr10_scat, MarkEff_Chr11_scat, MarkEff_Chr12_scat, MarkEff_Chr13_scat, MarkEff_Chr14_scat, MarkEff_Chr15_scat, MarkEff_Chr16_scat, MarkEff_Chr17_scat, MarkEff_Chr18_scat)
+
+
+?ggplot_gtable
+```
+
+
+Create full models for all 100 permutations
+```{r}
+#####################################
+# Make full model for 100 data set permutations specified on command line
+#
+# Arguments: [1] id (i.e. wheat_599_CIMMYT)
+#            [2] Permutation Number (i.e. 4)
+#            [3] 
+#	     
+#
+# Written by: Christina Azodi
+# Edited by: Alan Yocca
+# Original: 4.26.17
+# Modified: 9.08.17
+#####################################
+library(BGLR)
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+
+Y <- read.csv('pheno.csv', row.names=1)
+rownames(Y) <- Y[,1]
+Y[,1] <- NULL
+
+for (j in 64:100) {
+
+  X <- read.table(file = 'genoperm_1.csv', sep = ',', row.names=1)
+
+  rownames(X) <- X[,1]
+  X[,1] <- NULL
+
+
+  # Center and scale X (makes it equivalent to the input for the linear model and methods that use that G matrix)
+  X=scale(X)
+
+  for(i in 1:length(Y)){
+    #print(paste('trait =',names(Y)[i]))
+    #dir.create(paste('trait_',names(Y)[i], sep=''))
+    setwd(paste('trait_',names(Y)[i], sep=''))
+    #dir.create('output')
+    y=Y[, names(Y)[i]]
+    #CV.fold= paste('cv_', toString(jobNum-1), sep='')
+    ETA=list(list(X=X,model='BayesA')) 
+  
+  #if(CV.fold =='cv_0'){
+    # fit model to the entire data set and save model
+  
+    fm=BGLR(y=y,ETA=ETA,verbose=FALSE, df0 = 16, nIter=12000,burnIn=2000)
+    save(fm,file=paste0('full_model_', j, '.RData'))
+  
+    setwd("../")
+  }
+rm(X, y, ETA, fm)
+}
+[=oi9p\-09-#r09-i--p,
+    ;
+  m(i, j)
+
+
+
+
+
+
+
+# Removes all existing variables from the workspace
+rm(list=ls())
+args = commandArgs(trailingOnly=TRUE)
+
+# Read in arguments with 5 as the default PCs to include
+if (length(args)==0) {
+  stop("Need at least one argument (ID)", call.=FALSE)
+} else if (length(args)==2) {
+  # default df0  (default in GBLR package)
+  args[3] <- 5
+}
+#id <- 'wheat_599_CIMMYT'
+#jobNum <- 2
+#pc.num <- 5
+id = args[1]
+#jobNum = as.numeric(args[2])
+df0 = as.nuo0meric(args[3])
+
+## load the phenotypes and PCs
+setwd(paste("/mnt/home/yoccaala/03_GenomicSelection/", id, sep=''))
+#setwd(paste('~/Desktop/Genomic_Selection/GS_Datasets/', id, sep=''))
+dir.create("99_BayesApermute")
+setwd("99_BayesApermute")
+
+
+Y <- read.csv('../01_Data/pheno.csv', row.names=1)
+X <- read.csv(get(paste0('../01_Data/genoperm_', args[2], '.csv')), row.names=1)
+cvs <- read.csv('../01_Data/CVFs.csv', row.names=1)
+
+rownames(X) <- X[,1]
+X[,1] <- NULL
+
+rownames(Y) <- Y[,1]
+Y[,1] <- NULL
+
+
+# Center and scale X (makes it equivalent to the input for the linear model and methods that use that G matrix)
+X=scale(X)
+
+for(i in 1:length(Y)){
+  print(paste('trait =',names(Y)[i]))
+  dir.create(paste('trait_',names(Y)[i], sep=''))
+  setwd(paste('trait_',names(Y)[i], sep=''))
+  #dir.create('output')
+  y=Y[, names(Y)[i]]
+  #CV.fold= paste('cv_', toString(jobNum-1), sep='')
+  ETA=list(list(X=X,model='BayesA')) 
+  
+  #if(CV.fold =='cv_0'){
+    # fit model to the entire data set and save model
+  
+  fm=BGLR(y=y,ETA=ETA,verbose=FALSE, df0 = df0, nIter=12000,burnIn=2000)
+  save(fm,file=paste0('full_model_', args[2], '.RData'))
+  
+#}
+  
+  #else{
+    # load the folds
+   # tst=cvs[,CV.fold]
+   # yhat <- data.frame(cbind(y, yhat = 0))
+   # yhat$yhat <- as.numeric(yhat$yhat)
+   # row.names(yhat) <- row.names(Y)
+    
+   # for(j in 1:5){
+    #  print(paste('fold =',j))
+    #  test <- which(tst==j)
+    #  yNA <- y
+    #  yNA[test] <- NA # Mask yields for validation set
+    #  fm=BGLR(y=yNA,ETA=ETA,verbose=FALSE,df0 = df0, nIter=12000,burnIn=2000)
+    #  yhat$yhat[test] <- fm$yHat[test]
+      
+   # }
+   # unlink('*.dat')
+   # write.table(yhat, paste('output/', CV.fold,'.csv', sep=''), sep=',', row.names=FALSE, col.names=TRUE)
+   # accuracy <- cor(yhat$y, yhat$yhat)
+   # df_out <- data.frame(CV.fold, accuracy)
+   # write.table(df_out, 'accuracy.csv', append=TRUE, sep=',', row.names=FALSE, col.names=FALSE)  
+  #}
+  setwd('../')
+}
+```
+
+
+
+Load full models and plot averages
+```{r}
+library(BGLR)
+library(tidyverse)
+#library(plyr)
+
+#detach("package:dplyr", unload=T)
+
+#do the remove all variables thing
+
+#load("swgrs_DP_Lipka/99_BayesApermute/fullmodel_1.R")
+#load("C:/Users/aeyocca/Desktop/full_model.RData")
+#x <- fm$ETA[[1]]$b
+#df_bHat <- as.data.frame(x)
+#View(head(df_bHat))
+#names <- rownames(df_bHat)
+#rownames(df_bHat) <- NULL
+#df_bHat <- cbind("rs" = names,df_bHat)
+
+#colnames(df_bHat)[2] <- 1
+
+#Conv_all <- read.csv('swgrs_DP_Lipka/01_Data/Conv_all.csv')
+#df_bHat_all <- merge(df_bHat, Conv_all)
+
+#rm(x, df_bHat, names, fm)
+#j = 2
+
+#no scientific notation
+options(scipen = 0)
+options(digits = 6)
+
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+
+j=2
+
+Y <- read.csv('pheno.csv', row.names=1)
+rownames(Y) <- Y[,1]
+Y[,1] <- NULL
+
+#for(i in 1:length(Y)){
+#  print(paste('trait =',names(Y)[i]))
+#  dir.create(paste('trait_',names(Y)[i], sep=''))
+#  setwd(paste('trait_',names(Y)[i], sep=''))
+  #setwd(paste0('trait_',names(Y)[1]))
+  
+for (k in 1:length(Y)){
+  setwd(paste0('trait_',names(Y)[k]))
+  #change working directory to given trait
+  #Then we create df_bHat_all data frame with rs names, 1st permutation full model weights, chrom, pos
+  load("full_model_1.Rdata")
+  x <- fm$ETA[[1]]$b
+  df_bHat <- as.data.frame(x)
+  View(head(df_bHat))
+  names <- rownames(df_bHat)
+  rownames(df_bHat) <- NULL
+  df_bHat <- cbind("rs" = names,df_bHat)
+
+  colnames(df_bHat)[2] <- 1
+
+  Conv_all <- read.csv('../Conv_all')
+  df_bHat_all <- merge(df_bHat, Conv_all)
+  #View(head(df_bHat_all))
+  rm(x, df_bHat, names, fm)
+
+  for (i in 2:100) {
+    load(paste0("full_model_", i, ".Rdata"))
+    #load(paste0("full_model_", 1, ".Rdata"))
+    x <- fm$ETA[[1]]$b
+    df_bHat <- as.data.frame(x)
+    #df_bHat is now a data frame with row names that are rs names and one column labeled "x" with the weights
+    colnames(df_bHat) <- j
+    #change column name from "x" to whatever number permutation the full model came from
+    names <- rownames(df_bHat)
+    rownames(df_bHat) <- NULL
+    df_bHat <- cbind("rs" = names,df_bHat)
+    #change rs names from row names to its own column with the title "rs"
+    
+    df_bHat_all <- merge(df_bHat, df_bHat_all)
+    #Add wieghts with appropriate column title to our df_bHat_all data frame according to rs name
+    
+    j = j+1
+    rm(x, df_bHat, names, fm)
+  }
+#View(head(df_bHat_all))
+  
+  #make another df named for squares, square every item in the relevant columns by transform(df, colname=colname^2) do that in a loop somehow. Then average it, then we make two different graphs, save just the marker not squared df as csv then save both graphs as pdfs
+  #I think we should consider averaging all them then squaring as that will be more robust to outliers. Our permutations are random, so marker effects should actually center on 0?? In that case squaring then taking the average would be better
+  #rm(df_bHat_all_sqr)
+  #df_bHat_all_sqr <- df_bHat_all
+  #df_bHat_all_sqr <- transform(df_bHat_all_sqr, "1" = df_bHat_all_sqr[,2]^2)
+  #View(head(df_bHat_all_sqr))
+  #?transform
+  
+ 
+  df_bHat_all_sqr <- df_bHat_all
+  
+  for (i in 2:11) {
+    df_bHat_all_sqr[,i] <- df_bHat_all_sqr[,i]^2
+  }
+  
+  SqrAvg <- rowSums(df_bHat_all_sqr[,c(2,2:101)])/100
+  Avg <- rowSums(df_bHat_all[,c(2,2:101)])/100
+  
+  df_bHat_all_sqr <- cbind(df_bHat_all_sqr, SqrAvg)
+  df_bHat_all <- cbind(df_bHat_all, Avg)
+  
+  
+  
+  MarkEff_all_facet <- df_bHat_all %>%
+    ggplot(aes(x = pos, y = Avg^2)) +
+       geom_point() +
+       xlab("Position") +
+       ylab("Sqr Mark Eff") +
+       scale_y_continuous(limits = c(0,0.00003)) +
+       facet_wrap(~chrom)
+  
+  MarkEff_all_sqr_facet <- df_bHat_all %>%
+    ggplot(aes(x = pos, y = SqrAvg)) +
+       geom_point() +
+       xlab("Position") +
+       ylab("Sqr Mark Eff") +
+       scale_y_continuous(limits = c(0,0.00003)) +
+       facet_wrap(~chrom)
+  
+  
+  jpeg(filename = paste0("MarkEff_all_facet_", names(Y)[1], ".png"), width = 12, height = 6, units = 'in', res = 300)
+  plot(MarkEff_all_facet)
+  dev.off()
+  
+  jpeg(filename = paste0("MarkEff_all_sqr_facet_", names(Y)[k], ".png"), width = 12, height = 6, units = 'in', res = 300)
+  plot(MarkEff_all_sqr_facet)
+  dev.off()
+  
+  
+  
+  write.table(df_bHat_all = paste0("perm_mark_eff_", names(Y)[k], ".csv", sep = ",")
+}
+
+```
+
+Entire thing above without comments
+
+```{r}
+rm(list=ls(all=TRUE))
+library(BGLR)
+library(tidyverse)
+
+options(scipen = 0)
+options(digits = 6)
+
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+#setwd('trait_Plant_Height/')
+
+j=2
+
+Y <- read.csv('pheno.csv', row.names=1)
+rownames(Y) <- Y[,1]
+Y[,1] <- NULL
+
+  
+for (k in 1:length(Y)){
+  setwd(paste0('trait_',names(Y)[k]))
+  
+  load("full_model_1.Rdata")
+  x <- fm$ETA[[1]]$b
+  df_bHat <- as.data.frame(x)
+  names <- rownames(df_bHat)
+  rownames(df_bHat) <- NULL
+  df_bHat <- cbind("rs" = names,df_bHat)
+
+  colnames(df_bHat)[2] <- 1
+
+  Conv_all <- read.csv('../Conv_all')
+  df_bHat_all <- merge(df_bHat, Conv_all)
+  
+  rm(x, df_bHat, names, fm)
+
+  for (i in 2:100) {
+    load(paste0("full_model_", i, ".Rdata"))
+    
+    x <- fm$ETA[[1]]$b
+    df_bHat <- as.data.frame(x)
+    
+    colnames(df_bHat) <- j
+    
+    names <- rownames(df_bHat)
+    rownames(df_bHat) <- NULL
+    df_bHat <- cbind("rs" = names,df_bHat)
+   
+    
+    df_bHat_all <- merge(df_bHat, df_bHat_all)
+    
+    
+    j = j+1
+    rm(x, df_bHat, names, fm)
+  }
+ 
+  df_bHat_all_sqr <- df_bHat_all
+  
+    for (i in 2:101) {
+      df_bHat_all_sqr[,i] <- df_bHat_all_sqr[,i]^2
+    }
+  
+  SqrAvg <- rowSums(df_bHat_all_sqr[,c(2:101)])/100
+  Avg <- rowSums(df_bHat_all[,c(2:101)])/100
+  
+  df_bHat_all_sqr <- cbind(df_bHat_all_sqr, SqrAvg)
+  df_bHat_all <- cbind(df_bHat_all, Avg)
+  
+  
+  
+  MarkEff_all_facet <- df_bHat_all %>%
+    ggplot(aes(x = pos, y = Avg^2)) +
+       geom_point() +
+       xlab("Position") +
+       ylab("Sqr Mark Eff") +
+       scale_y_continuous(limits = c(0,0.00003)) +
+       facet_wrap(~chrom)
+  
+  MarkEff_all_sqr_facet <- df_bHat_all %>%
+    ggplot(aes(x = pos, y = SqrAvg)) +
+       geom_point() +
+       xlab("Position") +
+       ylab("Sqr Mark Eff") +
+       scale_y_continuous(limits = c(0,0.00003)) +
+       facet_wrap(~chrom)
+  
+  
+  jpeg(filename = paste0("MarkEff_all_facet_", names(Y)[k], ".png"), width = 12, height = 6, units = 'in', res = 300)
+  plot(MarkEff_all_facet)
+  dev.off()
+  
+  jpeg(filename = paste0("MarkEff_all_sqr_facet_", names(Y)[k], ".png"), width = 12, height = 6, units = 'in', res = 300)
+  plot(MarkEff_all_sqr_facet)
+  dev.off()
+  
+  write.table(df_bHat_all, file = paste0("perm_mark_eff_", names(Y)[k], ".csv"))
+
+  setwd("../")
+  rm(MarkEff_all_facet, MarkEff_all_sqr_facet, df_bHat_all, df_bHat_all_sqr, SqrAvg, Avg, Conv_all)
+}
+
+```
+
+Graphs are pretty wonky except for Standability which is what I used to optimize the y scale of the graphs, so lets go through the other two traits and optimize
+
+```{r}
+rm(list = ls(all = T))
+to.read = load("C:/Users/aeyocca/Desktop/full_model_ST.RData")
+ x <- fm$ETA[[1]]$b
+  df_bHat <- as.data.frame(x)
+  names <- rownames(df_bHat)
+  rownames(df_bHat) <- NULL
+  df_bHat <- cbind("rs" = names,df_bHat)
+
+  #View(df_bHat_all)
+  
+  colnames(df_bHat)[2] <- "Effect"
+#View(head(df_bHat))
+  Conv_all <- read.csv('Conv_all')
+  df_bHat_all <- merge(df_bHat, Conv_all)
+  
+  #df_bHat_all_avg <- df_bHat_all 
+  #df_bHat_all_avg[,"Effect"] <- df_bHat_all_avg[,"Effect"]^2
+  #View(df_bHat_all_avg)   
+
+ MarkEff_all_ST_facet <- df_bHat_all %>%
+    ggplot(aes(x = pos, y = Effect^2)) +
+       geom_point() +
+       xlab("Position") +
+       ylab("Sqr Mark Eff") +
+       scale_y_continuous(limits = c(0,0.00003)) +
+       facet_wrap(~chrom)
+#MarkEff_all_ST_facet
+#two data points are very high and therefore make the other points look insignificant:
+#TP578482 7.20375e-05 11 17217763
+#TP807341 3.54938e-05 11 56443565
+#going to scale graph accordingly removing these two points, but will still be in saved data frame
+
+
+jpeg(filename = "trait_Standability/MarkEff_all_ST_facet.jpeg", width = 12, height = 6, units = 'in', res = 300)
+  plot(MarkEff_all_ST_facet)
+  dev.off()
+  
+  write.table(df_bHat_all, file = "trait_Standability/Mark_eff_ST.csv", sep = ",")
+
+
+
+to.read = load("C:/Users/aeyocca/Desktop/full_model_PH.RData")
+ x <- fm$ETA[[1]]$b
+  df_bHat <- as.data.frame(x)
+  names <- rownames(df_bHat)
+  rownames(df_bHat) <- NULL
+  df_bHat <- cbind("rs" = names,df_bHat)
+
+  #View(df_bHat_all)
+  
+  colnames(df_bHat)[2] <- "Effect"
+#View(head(df_bHat))
+  Conv_all <- read.csv('Conv_all')
+  df_bHat_all <- merge(df_bHat, Conv_all)
+
+ MarkEff_all_PH_facet <- df_bHat_all %>%
+    ggplot(aes(x = pos, y = Effect^2)) +
+       geom_point() +
+       xlab("Position") +
+       ylab("Sqr Mark Eff") +
+       scale_y_continuous() +
+       facet_wrap(~chrom)
+#MarkEff_all_PH_facet
+#range for plant height weights 0:4e-4
+
+
+jpeg(filename = "trait_Plant_Height/MarkEff_all_PH_facet.jpeg", width = 12, height = 6, units = 'in', res = 300)
+  plot(MarkEff_all_PH_facet)
+  dev.off()
+  
+  write.table(df_bHat_all, file = "trait_Plant_Height/Mark_eff_PH.csv", sep = ",")
+
+#Anthesis Date
+to.read = load("C:/Users/aeyocca/Desktop/full_model_AD.RData")
+ x <- fm$ETA[[1]]$b
+  df_bHat <- as.data.frame(x)
+  names <- rownames(df_bHat)
+  rownames(df_bHat) <- NULL
+  df_bHat <- cbind("rs" = names,df_bHat)
+
+  #View(df_bHat_all)
+  
+  df_bHat_all_avg <- df_bHat_all 
+  df_bHat_all_avg[,"Effect"] <- df_bHat_all_avg[,"Effect"]^2
+  View(df_bHat_all_avg)
+  
+  colnames(df_bHat)[2] <- "Effect"
+#View(head(df_bHat))
+  Conv_all <- read.csv('Conv_all')
+  df_bHat_all <- merge(df_bHat, Conv_all)
+
+ MarkEff_all_AD_facet <- df_bHat_all %>%
+    ggplot(aes(x = pos, y = Effect^2)) +
+       geom_point() +
+       xlab("Position") +
+       ylab("Sqr Mark Eff") +
+       scale_y_continuous(limits = c(0,6.5e-10)) +
+       facet_wrap(~chrom)
+#MarkEff_all_AD_facet
+#One SNP with large effect that is shrinking the rest of the graphs so will change y limits accordingly so graph will exclude this point, but will still be present in data frame
+ 
+ 
+jpeg(filename = "trait_Anthesis_Date_8632/MarkEff_all_AD_facet.jpeg", width = 12, height = 6, units = 'in', res = 300)
+  plot(MarkEff_all_AD_facet)
+  dev.off()
+  
+  write.table(df_bHat_all, file = "trait_Anthesis_Date_8632/Mark_eff_AD.csv", sep = ",")
+  
+#Marker effect range 0:6e-10
+#alright so screw it lets just do the 3 permutations one at a time, not worth trying to figure out loop....
+#save all the actual full model graphs AND data frames for comparison
+```
+
+Instead of graphing the permutations with a loop, lets graph them with the same y axes as the full model graphs and see what they look like
+
+```{r}
+rm(list=ls(all=TRUE))
+library(BGLR)
+library(tidyverse)
+
+#options(scipen = 0)
+#options(digits = 6)
+
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+#setwd('trait_Plant_Height/')
+
+j=2
+
+Y <- read.csv('pheno.csv', row.names=1)
+rownames(Y) <- Y[,1]
+Y[,1] <- NULL
+
+  
+#for (k in 1:length(Y)){
+  setwd('trait_Standability/')
+  
+  load("full_model_1.Rdata")
+  x <- fm$ETA[[1]]$b
+  df_bHat <- as.data.frame(x)
+  names <- rownames(df_bHat)
+  rownames(df_bHat) <- NULL
+  df_bHat <- cbind("rs" = names,df_bHat)
+
+  colnames(df_bHat)[2] <- 1
+
+  Conv_all <- read.csv('../Conv_all')
+  df_bHat_all <- merge(df_bHat, Conv_all)
+  
+  rm(x, df_bHat, names, fm)
+
+  for (i in 2:100) {
+    load(paste0("full_model_", i, ".Rdata"))
+    
+    x <- fm$ETA[[1]]$b
+    df_bHat <- as.data.frame(x)
+    
+    colnames(df_bHat) <- j
+    
+    names <- rownames(df_bHat)
+    rownames(df_bHat) <- NULL
+    df_bHat <- cbind("rs" = names,df_bHat)
+   
+    
+    df_bHat_all <- merge(df_bHat, df_bHat_all)
+    
+    
+    j = j+1
+    rm(x, df_bHat, names, fm)
+  }
+ 
+  df_bHat_all_sqr <- df_bHat_all
+  
+    for (i in 2:101) {
+      df_bHat_all_sqr[,i] <- df_bHat_all_sqr[,i]^2
+    }
+  View(head(df_bHat_all_sqr))
+  SqrAvg <- rowSums(df_bHat_all_sqr[,c(2:101)])/100
+  Avg <- rowSums(df_bHat_all[,c(2:101)])/100
+  
+  df_bHat_all_sqr <- cbind(df_bHat_all_sqr, SqrAvg)
+  df_bHat_all <- cbind(df_bHat_all, Avg)
+  
+  
+  
+  MarkEff_all_facet <- df_bHat_all %>%
+    ggplot(aes(x = pos, y = Avg^2)) +
+       geom_point() +
+       xlab("Position") +
+       ylab("Sqr Mark Eff") +
+       scale_y_continuous(limits = c(0,0.00003)) +
+       facet_wrap(~chrom)
+  
+  MarkEff_all_sqr_facet <- df_bHat_all %>%
+    ggplot(aes(x = pos, y = SqrAvg)) +
+       geom_point() +
+       xlab("Position") +
+       ylab("Sqr Mark Eff") +
+       scale_y_continuous(limits = c(0,0.00003)) +
+       facet_wrap(~chrom)
+  
+  
+  jpeg(filename = "MarkEff_all_ST_facet.jpeg", width = 12, height = 6, units = 'in', res = 300)
+  plot(MarkEff_all_facet)
+  dev.off()
+  
+  jpeg(filename = "MarkEff_all_sqr_ST_facet.jpeg", width = 12, height = 6, units = 'in', res = 300)
+  plot(MarkEff_all_sqr_facet)
+  dev.off()
+  
+  write.table(df_bHat_all, file = "perm_mark_eff_ST.csv")
+#View(df_bHat_all_sqr)
+  
+  rm(MarkEff_all_facet, MarkEff_all_sqr_facet, df_bHat_all, df_bHat_all_sqr, SqrAvg, Avg, Conv_all)
+
+```
+
+After looking at all the graphs I'm going to get jiggy with it. I'm going to pull my top 5 weights from the full models, then I'm going to take the 100 permutation values for those loci and look at the distributions plotted, probably histogram. I should probably look up how to find p-value for non-parametric data set..... I would really like to assume they are all normal, that would be nice
+Not too sure how to calculate a p-value here. I fit the data to a model, then fit the data randomly to the model. Do I assume some sort of distribution of the permutation values... lets check a histogram maybe that will make it clear
+
+```{r}
+rm(list=ls(all=TRUE))
+library(BGLR)
+library(tidyverse)
+library(tidyr)
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+#setwd('trait_Plant_Height/')
+
+j=2
+
+Y <- read.csv('pheno.csv', row.names=1)
+rownames(Y) <- Y[,1]
+Y[,1] <- NULL
+
+  setwd('trait_Standability/')
+  
+  load("full_model_1.Rdata")
+  x <- fm$ETA[[1]]$b
+  df_bHat_perm <- as.data.frame(x)
+  names <- rownames(df_bHat_perm)
+  rownames(df_bHat_perm) <- NULL
+  df_bHat_perm <- cbind("rs" = names,df_bHat_perm)
+
+  colnames(df_bHat_perm)[2] <- 1
+
+  Conv_all <- read.csv('../Conv_all')
+  df_bHat_perm <- merge(df_bHat_perm, Conv_all)
+rm(Y, Conv_all, fm, x, names)
+
+   for (i in 2:100) {
+    load(paste0("full_model_", i, ".Rdata"))
+    
+    x <- fm$ETA[[1]]$b
+    df_bHat <- as.data.frame(x)
+    
+    colnames(df_bHat) <- j
+    
+    names <- rownames(df_bHat)
+    rownames(df_bHat) <- NULL
+    df_bHat <- cbind("rs" = names,df_bHat)
+   
+    
+    df_bHat_perm <- merge(df_bHat, df_bHat_perm)
+    
+    
+    j = j+1
+    rm(x, df_bHat, names, fm)
+  }
+ 
+  df_bHat_sqr_perm <- df_bHat_perm
+  
+    for (i in 2:101) {
+      df_bHat_sqr_perm[,i] <- df_bHat_sqr_perm[,i]^2
+    }
+  
+  SqrAvg <- rowSums(df_bHat_sqr_perm[,c(2:101)])/100
+  Avg <- rowSums(df_bHat_perm[,c(2:101)])/100
+  
+  df_bHat_sqr_perm <- cbind(df_bHat_sqr_perm, SqrAvg)
+  df_bHat_perm <- cbind(df_bHat_perm, Avg)
+ 
+#get top 5 weights in full model
+  to.read = load("C:/Users/aeyocca/Desktop/full_model_ST.RData")
+  x <- fm$ETA[[1]]$b
+  df_bHat <- as.data.frame(x)
+  names <- rownames(df_bHat)
+  rownames(df_bHat) <- NULL
+  df_bHat <- cbind("rs" = names,df_bHat)
+
+  #View(df_bHat)
+  colnames(df_bHat)[2] <- "Effect"
+  
+  df_bHat_sqr <- df_bHat 
+  df_bHat_sqr[,"Effect"] <- df_bHat_sqr[,"Effect"]^2
+  #View(df_bHat_sqr_all[2])
+  
+  
+#View(head(df_bHat))
+  Conv_all <- read.csv('../Conv_all')
+  df_bHat_sqr_all <- merge(df_bHat_sqr, Conv_all)
+  
+  df_sorted <- df_bHat_sqr_all[order(-df_bHat_sqr_all[,2]),]
+
+
+rm(Conv_all, names, to.read, SqrAvg, i, j, Avg, fm, x)
+  
+  
+  #rm(Conv_all, df_bHat, df_bHat_all, df_bHat_all_sqr, df_bHat_sqr, df_bHat_sqr_all, df_bHat_sqr_all_eff)
+  
+  #View(df_sorted)
+  
+  top_5 <- df_sorted[1:5,2]
+  top_5_rs <- df_sorted[1:5,1]
+  top_5_weights <- df_sorted[1:5,1:2]
+  top_5_rs <- levels(droplevels(top_5_rs))
+  
+  #get top 5 weights not sorted
+  #View(df_sorted_reg)
+  Conv_all <- read.csv('../Conv_all')
+  df_bHat_all <- merge(df_bHat, Conv_all)
+  
+  #df_sorted_reg <- df_bHat_all[order(-df_bHat_all[,2]),]
+  #top_5_weights_reg <- df_sorted_reg[1:5,1:2]
+  #this one will take the top 5 square marker effects 
+  top_5_weights_reg <- subset(df_sorted_reg, rs %in% top_5_rs)
+  
+#make I guess dataframe.. extract columns 2:101 in rows of the top 5 names
+#I think it will be better to combine the two data frames then can
+
+rs <- levels(droplevels(df_bHat_sqr_perm$rs))  
+df_bHat_sqr_perm[,1] <- NULL
+df_bHat_sqr_perm <- mutate(df_bHat_sqr_perm, "rs"=rs)
+View(head(df_bHat_sqr_perm))
+
+top_5_rs
+top_5_perm <- subset(df_bHat_sqr_perm, rs %in% top_5_rs)
+View(top_5_perm)
+  
+top_5_rs
+top_5_perm_t <- t(top_5_perm)
+top_5_perm_t <- top_5_perm_t[2:101,]
+colnames(top_5_perm_t) <- top_5_rs
+#View(top_5_perm_t)
+
+hist_top_5_perm_sqr <- top_5_perm_t %>%
+  as.tibble() %>%
+  gather(key="rs", value="Effect") %>%
+  transform(Effect = as.numeric(Effect)) %>%
+  ggplot(aes(x = Effect, fill = rs)) +
+  geom_histogram() +
+  facet_wrap(~rs)
+
+
+
+#non squared effect distribution
+rs <- levels(droplevels(df_bHat_perm$rs))  
+df_bHat_perm[,1] <- NULL
+df_bHat_perm <- mutate(df_bHat_perm, "rs"=rs)
+View(head(df_bHat_perm))
+
+top_5_rs
+top_5_perm_reg <- subset(df_bHat_perm, rs %in% top_5_rs)
+View(top_5_perm)
+  
+top_5_rs
+top_5_perm_treg <- t(top_5_perm_reg)
+top_5_perm_treg <- top_5_perm_treg[1:100,]
+colnames(top_5_perm_treg) <- top_5_rs
+#View(top_5_perm_t)
+
+hist_top_5_perm <- top_5_perm_treg %>%
+  as.tibble() %>%
+  gather(key="rs", value="Effect") %>%
+  transform(Effect = as.numeric(Effect)) %>%
+  ggplot(aes(x = Effect, fill = rs)) +
+  geom_histogram() +
+  facet_wrap(~rs)
+#lets make a p-value
+View(top_5_perm_treg)
+class(top_5_perm_treg)
+top_5_perm_treg <- as.data.frame(top_5_perm_treg)
+sapply(top_5_perm_treg, class)
+
+top_5_perm_treg[,1] <- as.numeric(as.character(top_5_perm_treg[,1]))
+top_5_perm_treg[,2] <- as.numeric(as.character(top_5_perm_treg[,2]))
+top_5_perm_treg[,3] <- as.numeric(as.character(top_5_perm_treg[,3]))
+top_5_perm_treg[,4] <- as.numeric(as.character(top_5_perm_treg[,4]))
+top_5_perm_treg[,5] <- as.numeric(as.character(top_5_perm_treg[,5]))
+
+
+
+mean <- colSums(top_5_perm_treg)/100
+std <- sapply(top_5_perm_treg, sd)
+
+top_5_perm_treg_mean <- rbind(top_5_perm_treg, mean)
+top_5_perm_treg_mean_sd <- rbind(top_5_perm_treg_mean, std)
+View(top_5_perm_treg_mean_sd)  
+
+mean
+std
+top_5_weights_reg
+#row equivalents: top1=mean5 top2=mean3 top3=mean4 top4=mean1 top5=mean2
+p_value1 <- pnorm(top_5_weights_reg[1,2], mean = mean[5], sd = std[5])
+p_value2 <- pnorm(top_5_weights_reg[2,2], mean = mean[3], sd = std[3], lower.tail = F)
+p_value3 <- pnorm(top_5_weights_reg[3,2], mean = mean[4], sd = std[4], lower.tail = F)
+p_value4 <- pnorm(top_5_weights_reg[4,2], mean = mean[1], sd = std[1], lower.tail = F)
+p_value5 <- pnorm(top_5_weights_reg[5,2], mean = mean[2], sd = std[2])
+p_value <- c(p_value1, p_value2, p_value3, p_value4, p_value5)
+```
+
+Curiosity
+```{r}
+check <- top_5_perm_treg[,1]
+class(check)
+mean(check)
+sd(check)
+
+norm <- rnorm(1000, mean = 10)
+sqrnorm <- norm^2
+hist(sqrnorm)
+```
+
+Run permutation p value analysis for Anthesis Date
+```{r}
+rm(list=ls(all=TRUE))
+library(BGLR)
+library(tidyverse)
+library(tidyr)
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+#setwd('trait_Plant_Height/')
+
+j=2
+
+Y <- read.csv('pheno.csv', row.names=1)
+rownames(Y) <- Y[,1]
+Y[,1] <- NULL
+
+  setwd('trait_Anthesis_Date_8632/')
+  
+  load("full_model_1.Rdata")
+  x <- fm$ETA[[1]]$b
+  df_bHat_perm <- as.data.frame(x)
+  names <- rownames(df_bHat_perm)
+  rownames(df_bHat_perm) <- NULL
+  df_bHat_perm <- cbind("rs" = names,df_bHat_perm)
+
+  colnames(df_bHat_perm)[2] <- 1
+
+  Conv_all <- read.csv('../Conv_all')
+  df_bHat_perm <- merge(df_bHat_perm, Conv_all)
+rm(Y, Conv_all, fm, x, names)
+
+   for (i in 2:100) {
+    load(paste0("full_model_", i, ".Rdata"))
+    
+    x <- fm$ETA[[1]]$b
+    df_bHat <- as.data.frame(x)
+    
+    colnames(df_bHat) <- j
+    
+    names <- rownames(df_bHat)
+    rownames(df_bHat) <- NULL
+    df_bHat <- cbind("rs" = names,df_bHat)
+   
+    
+    df_bHat_perm <- merge(df_bHat, df_bHat_perm)
+    
+    
+    j = j+1
+    rm(x, df_bHat, names, fm)
+  }
+ 
+  df_bHat_sqr_perm <- df_bHat_perm
+  
+    for (i in 2:101) {
+      df_bHat_sqr_perm[,i] <- df_bHat_sqr_perm[,i]^2
+    }
+  
+  SqrAvg <- rowSums(df_bHat_sqr_perm[,c(2:101)])/100
+  Avg <- rowSums(df_bHat_perm[,c(2:101)])/100
+  
+  df_bHat_sqr_perm <- cbind(df_bHat_sqr_perm, SqrAvg)
+  df_bHat_perm <- cbind(df_bHat_perm, Avg)
+ 
+#get top 5 weights in full model
+  to.read = load("C:/Users/aeyocca/Desktop/full_model_AD.RData")
+  x <- fm$ETA[[1]]$b
+  df_bHat <- as.data.frame(x)
+  names <- rownames(df_bHat)
+  rownames(df_bHat) <- NULL
+  df_bHat <- cbind("rs" = names,df_bHat)
+
+  #View(df_bHat)
+  colnames(df_bHat)[2] <- "Effect"
+  
+  
+
+rm(Conv_all, names, to.read, SqrAvg, i, j, Avg, fm, x)
+  
+  
+  #rm(Conv_all, df_bHat, df_bHat_all, df_bHat_all_sqr, df_bHat_sqr, df_bHat_sqr_all, df_bHat_sqr_all_eff)
+  
+  #View(df_sorted)
+  
+  rs <- levels(droplevels(df_bHat[,1]))
+  rs <- as.data.frame(rs)
+  colnames(rs) <- "rs"
+  #View(head(rs))
+  df_bHat[,1] <- NULL
+  df_bHat <- cbind(rs, df_bHat)
+  
+  #)
+  Conv_all <- read.csv('../Conv_all')
+  df_bHat_all <- merge(df_bHat, Conv_all)
+  
+  #df_sorted_reg <- df_bHat_all[order(-df_bHat_all[,2]),]
+  #top_5_weights_reg <- df_sorted_reg[1:5,1:2]
+  #this one will take the top 5 square marker effects 
+  #top_5_weights_reg <- subset(df_sorted_reg, rs %in% top_5_rs)
+  
+#make I guess dataframe.. extract columns 2:101 in rows of the top 5 names
+#I think it will be better to combine the two data frames then can
+
+rs <- levels(droplevels(df_bHat_sqr_perm$rs))  
+rs <- as.data.frame(rs)
+df_bHat_sqr_perm[,1] <- NULL
+df_bHat_sqr_perm <- cbind(rs, df_bHat_sqr_perm)
+View(head(df_bHat_sqr_perm))
+
+df_bHat_perm_t <- t(df_bHat_perm) %>%
+  as.data.frame()
+#View(df_bHat_perm[,1:5])
+
+class(rs)
+rs <- unname(unlist(df_bHat_perm_t[1,]))
+rs <- levels(droplevels(rs))  
+head(rs)
+
+#class(rs)
+#View(rs[,1:5])
+length(rs)
+dim(df_bHat_perm_t)
+
+df_bHat_perm_t <- df_bHat_perm_t[2:101,]
+colnames(df_bHat_perm_t) <- rs
+#df_bHat_perm_t <- rbind(rs, df_bHat_perm_t)
+
+#View(df_bHat_perm_t[,1:10])
+
+#DONT MAKE A GRAPH WITH THE WHOLE df_bHat_perm_t df, this is just a sanity check on specified number of markers
+test <- df_bHat_perm_t[,1:5] %>%
+  as.tibble() %>%
+  gather(key = "rs", value = "Effect")
+View(test)
+
+
+hist_top_5_perm_sqr <- df_bHat_perm_t[,1:5] %>%
+  as.tibble() %>%
+  gather(key="rs", value="Effect") %>%
+  transform(Effect = as.numeric(Effect)) %>%
+  ggplot(aes(x = Effect, fill = rs)) +
+  geom_histogram() +
+  facet_wrap(~rs)
+
+jpeg(filename = "hist_top_10_perm.jpeg", width = 12, height = 6, units = 'in', res = 300)
+  plot(hist_top_10_perm_sqr)
+  dev.off()
+
+
+#non squared effect distribution
+rs <- levels(droplevels(df_bHat_perm$rs))  
+df_bHat_perm[,1] <- NULL
+df_bHat_perm <- mutate(df_bHat_perm, "rs"=rs)
+View(head(df_bHat_perm))
+
+top_5_rs
+top_5_perm_reg <- subset(df_bHat_perm, rs %in% top_5_rs)
+View(top_5_perm)
+  
+top_5_rs
+top_5_perm_treg <- t(top_5_perm_reg)
+top_5_perm_treg <- top_5_perm_treg[1:100,]
+colnames(top_5_perm_treg) <- top_5_rs
+#View(top_5_perm_t)
+
+hist_top_5_perm <- top_5_perm_treg %>%
+  as.tibble() %>%
+  gather(key="rs", value="Effect") %>%
+  transform(Effect = as.numeric(Effect)) %>%
+  ggplot(aes(x = Effect, fill = rs)) +
+  geom_histogram() +
+  facet_wrap(~rs)
+#lets make a p-value
+View(top_5_perm_treg)
+class(top_5_perm_treg)
+top_5_perm_treg <- as.data.frame(top_5_perm_treg)
+sapply(top_5_perm_treg, class)
+
+top_5_perm_treg[,1] <- as.numeric(as.character(top_5_perm_treg[,1]))
+top_5_perm_treg[,2] <- as.numeric(as.character(top_5_perm_treg[,2]))
+top_5_perm_treg[,3] <- as.numeric(as.character(top_5_perm_treg[,3]))
+top_5_perm_treg[,4] <- as.numeric(as.character(top_5_perm_treg[,4]))
+top_5_perm_treg[,5] <- as.numeric(as.character(top_5_perm_treg[,5]))
+
+View(df_bHat_perm_t[1:20,1:20])
+
+class(df_bHat_perm_t)
+#?sd
+#df_bHat_perm_t <- as.data.frame(df_bHat_perm_t)
+#df_bHat_perm_t <- sapply(df_bHat_perm_t, as.numeric )
+
+df_bHat_perm_t[] <- lapply(df_bHat_perm_t, function(x) as.numeric(as.character(x)))
+
+mean <- colSums(df_bHat_perm_t)/100
+std <- sapply(df_bHat_perm_t, sd)
+#class(mean)
+#class(std)
+#length(mean)
+#length(std)
+head(std)
+
+v <- c(1)
+p_value_final <- v[0]
+p_value_final
+
+for (i in 1:16669){
+  p_value <- pnorm(df_bHat[i,2], mean = mean[i], sd = std[i])
+  if (p_value > 0.5) {
+    p_value <- pnorm(df_bHat[i,2], mean = mean[i], sd = std[i], lower.tail = F)
+  }
+  p_value_final[i] <- p_value
+  rm(p_value)
+} 
+
+mean
+std
+top_5_weights_reg
+#row equivalents: top1=mean5 top2=mean3 top3=mean4 top4=mean1 top5=mean2
+p_value1 <- pnorm(top_5_weights_reg[1,2], mean = mean[5], sd = std[5])
+p_value2 <- pnorm(top_5_weights_reg[2,2], mean = mean[3], sd = std[3], lower.tail = F)
+p_value3 <- pnorm(top_5_weights_reg[3,2], mean = mean[4], sd = std[4], lower.tail = F)
+p_value4 <- pnorm(top_5_weights_reg[4,2], mean = mean[1], sd = std[1], lower.tail = F)
+p_value5 <- pnorm(top_5_weights_reg[5,2], mean = mean[2], sd = std[2])
+p_value <- c(p_value1, p_value2, p_value3, p_value4, p_value5)
+```
