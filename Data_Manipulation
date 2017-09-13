@@ -1,1 +1,19 @@
 #will be used to list steps taken to get R to the format we need to run BLGR package ML algorithms
+
+
+#first data set will be 1. maize_MP_lehermeier: https://www.ncbi.nlm.nih.gov/pubmed/?term=Lehermeier+2014+maize+genomic+selection. Traits: days to tassel, height, dry yield
+
+#Plan to use terminal to copy all the genotype files from NCBI to a folder on local computer so I can load into R for processing. Practice with one file
+#Yea just make a loop for that.
+#We have 2290 genotype files on NCBI, 23 parents, 1005 Doubled Haploids (DHs) from the Dent population, and the rest are DH from Flint population
+#Populations are labeled CFD or CDD based on which population they came from followed by some hyphenated numeric identifier. The phenotype
+#files were available in the paper, no problem loading those into R and fixing it up to what we need. Major question though. There are
+#phenotype values for replicates. I believe we should take the average of these values. Yea that sounds good
+
+#TO DO:
+#Geno
+  #use terminal to copy all files from NCBI? Look up if I could load them straight from the internet into R so I don't overload my computer
+  #Run through one of the files to get code to manipulate accordingly
+#Pheno
+  #Average phenotype values to collapse to unique Genotypes in 1st column.
+  #Should I include the parents???
