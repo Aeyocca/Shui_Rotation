@@ -16,7 +16,7 @@
 #files were available in the paper, no problem loading those into R and fixing it up to what we need. Major question though. There are
 #phenotype values for replicates. I believe we should take the average of these values. Yea that sounds good
 
-#TO DO:
+#TO DO: MAKE SURE WHEN WRITE.CSV TAG QUOTE=FALSE AND INDEX=FALSE
 #Geno
   #use terminal to copy all files from NCBI? Look up if I could load them straight from the internet into R so I don't overload my computer
   #Run through one of the files to get code to manipulate accordingly
