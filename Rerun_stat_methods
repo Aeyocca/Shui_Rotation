@@ -1,0 +1,250 @@
+#re run stat methods due to error in geno / pheno file. First will fix geno and pheno files by adding index = "False" and quote="False"
+#Here is R code used:
+
+```{r}
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shui Rotation 2017/Switchgrass SNPs/")
+for (i in 1:18){
+  assign(paste0("Gen_Chr", i), read_delim(paste0("fastPhase_Imputed_files_for_GWAS_Chr_", i, ".txt"), delim = "\t"))
+}
+
+for (i in 1:18){
+  assign(paste0("Conv_Chr", i), read_delim(paste0("SNP_Info_Chr", i, ".txt"), delim = "\t"))
+}
+View(head(Conv_Chr1))
+
+Morph_trait <- read_delim("BLUPs_7_Morph_Traits_Assoc_for_GWAS_sorted_Anchored.txt", delim = "\t")
+#View(head(Morph_trait))
+#View(head(Gen_Chr1))
+```
+
+
+```{r}
+#combine all chromosomes into same table
+
+
+Geno <- Reduce(function(x, y) merge(x, y, all=TRUE), list(Gen_Chr1, Gen_Chr2, Gen_Chr3, Gen_Chr4, Gen_Chr5, Gen_Chr6, Gen_Chr7, Gen_Chr8, Gen_Chr9, Gen_Chr10, Gen_Chr11, Gen_Chr12, Gen_Chr13, Gen_Chr14, Gen_Chr15, Gen_Chr16, Gen_Chr17, Gen_Chr18))
+
+
+
+
+dim(Gen_Chr1)
+dim(Geno)
+dim(Morph_trait)
+View(head(Geno))
+View(head(Gen_Chr10))
+identical(Gen_Chr1, Gen_Chr10)
+length(unique(colnames(Geno)))
+
+Conv_all <- Reduce(function(x, y) merge(x, y, all = TRUE), list(Conv_Chr1, Conv_Chr2, Conv_Chr3, Conv_Chr4, Conv_Chr5, Conv_Chr6, Conv_Chr7, Conv_Chr8, Conv_Chr9, Conv_Chr10, Conv_Chr11, Conv_Chr12, Conv_Chr13, Conv_Chr14, Conv_Chr15, Conv_Chr16, Conv_Chr17, Conv_Chr18))
+
+dim(Conv_all)
+View(tail(Conv_all))
+View(Conv_Chr1)
+
+#Geno_sort <- Geno[with(Geno, order(Taxa)), ]
+
+Conv_all_sort <- Conv_all[with(Conv_all, or),] 
+View(head(Conv_all_sort))  
+
+```
+
+Make pheno.cvs data frame, removing any rows with missing data
+```{r}
+View(head(Morph_trait))
+Morph_trait_select <- Morph_trait %>%
+  select(MAP_ID, Plant_Height, Anthesis_Date_8632, Standability)
+View(Morph_trait_select)
+
+Remove_From_Geno <- Morph_trait_select %>%
+  filter(grepl("N", Plant_Height) | grepl("N", Anthesis_Date_8632) | grepl("N", Standability)) 
+
+#%>%
+ # filter(grepl("N", Anthesis_Date_8632)) %>%
+ # filter(grepl("N", Standability))
+
+dim(Remove_From_Geno)
+
+Morph_trait_full <- Morph_trait_select %>%
+  filter(!grepl("N", Plant_Height)) %>%
+  filter(!grepl("N", Anthesis_Date_8632)) %>%
+  filter(!grepl("N", Standability))
+
+dim(Morph_trait_select)
+dim(Morph_trait_full)
+```
+
+Remove corresponding missing data from Geno file
+
+```{r}
+#Geno_full <- Geno %>%
+  #filter(-Remove_From_Geno$MAP_ID)
+Geno_full <- subset(Geno, !(Taxa %in% Remove_From_Geno$MAP_ID))
+
+dim(Geno_full)
+View(Geno_full[1:10,1:10])
+
+Morph_sort <- Morph_trait_full[with(Morph_trait_full, order(MAP_ID)), ]
+
+Geno_sort <- Geno_full[with(Geno_full, order(Taxa)), ]
+
+identical(Geno_sort$Taxa, Morph_sort$MAP_ID)
+
+View(Geno_sort[,1])
+View(Morph_sort[,1])
+View(Geno_sort[1:10,1:10])
+
+gen_names <- Geno_full$Taxa
+morph_names <- Morph_trait_full$MAP_ID
+
+identical(gen_names, morph_names)
+
+#Now we got Morph_sort and Geno_sort exactly how we need them.... I think, need to look into paper and see how to see if two data points were split across growing seasons
+View(Morph_trait_select)
+View(Morph_trait)
+
+Check_unique <- Morph_sort %>%
+  mutate(Cut = gsub("\\.[0-9][0-9]$", "", MAP_ID))
+
+View(Check_unique$Cut)
+
+length(unique(Check_unique$Cut))
+#output is 66, nice exactly what paper said, 66 lines, 540 individuals
+```
+
+Export Geno_sort and Morph_sort as csv
+
+```{r}
+write.table(Morph_sort, file = "pheno.csv", sep = ",", quote=FALSE, row.names = FALSE)
+write.table(Geno_sort, file = "geno.csv", sep = ",", quote=FALSE, row.names = FALSE)
+
+#Then upload to hpcc
+
+#Here is the read.me christina made for running stat methods:
+
+### Readme for Genomic Selection NN project ###
+
+/mnt/home/azodichr/03_GenomicSelection
+
+# 0. File organization.
+
+Note: Scripts are written specifically to handle data organized in the following way. If your file structures are different the scripts will break!
+
+Project IDs:
+wheat_599_CIMMYT
+rice_DP_Spindel
+
+ID/:
+00_RawData
+01_Data/
+	pheno.csv
+	geno.csv
+	CVFs.csv
+02_PC/
+	output/
+		diagonal_histogram.pdf #diag.pdf
+		PC plots.pdf #PCs.pdf
+		Variance Explained.pdf #VarExplained.pdf
+		Variance Explained.csv (% of X and Yi var explained) #VarExplained.csv
+	trait_trait##/
+		PC5_accuracy.csv
+		PC5_cv_#.i.RData - model for each fold of each cv replicate
+		PC5_cv_#.csv - y and yhat for each cv replicate
+		PC5_full_model.RData - model using whole dataset - no train/test
+		PC5_full_pred.csv - y and yhat for whole dataset
+
+
+
+
+
+# 1. Preprocess data.
+Since all input data so far has been slightly different, this needs to be done manually
+script: GitHub/GenomicSelection/scripts/data_preprocessing.R
+
+Create two files with matching indexes: geno.csv, pheno.csv
+Notes:
+Remove lines missing any phenotypes of interest
+Remove lines with missing genotype information or impute that information (MissForest)
+Take the average of phenotypes across years
+
+
+# 2. Get CV folds (cross validation)
+
+python make_CVs.py -id [ID]
+#pre establish the same cross validation folds across all ML types
+
+
+# 3. Run Principal Component Analysis to get the PCs and corresponding plots
+
+Rscript getPCs.R [ID]
+#Error, cannot change working directory, so edit script to work in my current 03_GenomicSelection directory
+#need to change user directory when first setting working directory
+
+
+# 4. Make predictions using the top x PCs (I've been using the top 5 PC)
+
+Example qsub file: qsub_PC.txt  *Be sure to change the ID to your project ID!
+
+
+Rscript predict_PC.R [ID] ${PBS_ARRAYID} 5
+
+
+# 5. Make predictions using rrBLUP
+
+Example qsub file: qsub_rrBLUP.txt   *Be sure to change the ID to your project ID!
+
+Rscript predict_rrBLUP.R [ID] ${PBS_ARRAYID}
+
+* I manually went in and converted {0,1} alleles to {-1,1} alleles in this script (needed for wheat, but not rice) Fix this later!
+#I did not do this
+
+
+# 6. Repeat step 5 for: BayesA, BayesB, BL, and BRR
+
+
+# 7. Getting results 
+
+Get the average accuracies: ** modify line 14 to include the results you are interested in
+$ python pull_results.py
+Output: RESULTS.csv
+#careful not to have any files besides project directory in the current directory matching the following regex: '.*_.*_.*'
+
+Plots the results pulled above!
+$ Rscript plot_results.R
+Output: RESULTS.pdf
+
+
+
+
+
+
+### Appendix ###
+
+# Installing R packages
+
+Rscript -e "install.packages('rrBLUP', lib='~/R/library', contriburl=contrib.url('http://cran.r-project.org/'))"
+
+
+# 8. Permute BayesA
+For this I only am concerned about the full model, lets save them all in 
+99_DataPerm/ folder, # every line that doesn't make full model
+
+New data structure:
+01_Data/
+	pheno_{Permutation}.csv
+	geno_{Permutation}.csv
+	
+99_BayesApermute/
+	trait_trait##/
+		fullmodel_n.R
+	
+
+Scripts currently use {PBS_ARRAYID} to loop through each cross validation 
+fold, actually could just put a for 1-100 permutation variable loop in 
+the script, yea that sounds better
+
+Edit predict_BayesA.R and rename predict_BayesApermute.R
+-upload BLUPs_7... to 00_RawData
+-upload all fastPhase_Imputed... to 00_RawData
+-install tidyverse package
+
+
