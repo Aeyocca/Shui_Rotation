@@ -1889,3 +1889,313 @@ p_value4 <- pnorm(top_5_weights_reg[4,2], mean = mean[1], sd = std[1], lower.tai
 p_value5 <- pnorm(top_5_weights_reg[5,2], mean = mean[2], sd = std[2])
 p_value <- c(p_value1, p_value2, p_value3, p_value4, p_value5)
 ```
+
+
+subset graphs again
+```{r}
+rm(list=ls(all=TRUE))
+library(tidyverse)
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shiu Rotation 2017/swgrs_DP_Lipka/accuracies/98_BayesA_acc/")
+
+imp_0.1 <- read.table("accuracy_geno_imp_0.1.csv", sep = ",")
+imp_0.1_vec <- as.numeric(as.vector(imp_0.1[,2]))
+mean(imp_0.1_vec)
+#0.8104944
+
+imp_0.05 <- read.table("accuracy_geno_imp_0.05.csv", sep = ",")
+imp_0.05_vec <- as.numeric(as.vector(imp_0.05[,2]))
+mean(imp_0.05_vec)
+#0.7946759
+
+imp_0.01 <- read.table("accuracy_geno_imp_0.01.csv", sep = ",")
+imp_0.01_vec <- as.numeric(as.vector(imp_0.01[,2]))
+mean(imp_0.01_vec)
+#0.770809
+
+imp_0.001 <- read.table("accuracy_geno_imp_0.001.csv", sep = ",")
+imp_0.001_vec <- as.numeric(as.vector(imp_0.001[,2]))
+mean(imp_0.001_vec)
+#0.728632
+
+imp_neg4 <- read.table("accuracy_geno_imp_neg4.csv", sep = ",")
+imp_neg4_vec <- as.numeric(as.vector(imp_neg4[,2]))
+mean(imp_neg4_vec)
+#0.7011327
+
+imp_neg5 <- read.table("accuracy_geno_imp_neg5.csv", sep = ",")
+imp_neg5_vec <- as.numeric(as.vector(imp_neg5[,2]))
+mean(imp_neg5_vec)
+#0.6808776
+
+imp_10 <- read.table("accuracy_geno_imp_10.csv", sep = ",")
+imp_10_vec <- as.numeric(as.vector(imp_10[,2]))
+mean(imp_10_vec)
+#0.4051843
+
+sqr_0.1 <- read.table("accuracy_geno_sqr_0.1.csv", sep = ",")
+sqr_0.1_vec <- as.numeric(as.vector(sqr_0.1[,2]))
+mean(sqr_0.1_vec)
+#0.9511409
+
+sqr_0.05 <- read.table("accuracy_geno_sqr_0.05.csv", sep = ",")
+sqr_0.05_vec <- as.numeric(as.vector(sqr_0.05[,2]))
+mean(sqr_0.05_vec)
+#0.9614508
+
+sqr_0.01 <- read.table("accuracy_geno_sqr_0.01.csv", sep = ",")
+sqr_0.01_vec <- as.numeric(as.vector(sqr_0.01[,2]))
+mean(sqr_0.01_vec)
+#0.9695914
+
+sqr_0.001 <- read.table("accuracy_geno_sqr_0.001.csv", sep = ",")
+sqr_0.001_vec <- as.numeric(as.vector(sqr_0.001[,2]))
+mean(sqr_0.001_vec)
+#0.9622326
+
+sqr_neg4 <- read.table("accuracy_geno_sqr_neg4.csv", sep = ",")
+sqr_neg4_vec <- as.numeric(as.vector(sqr_neg4[,2]))
+mean(sqr_neg4_vec)
+#0.9456423
+
+sqr_neg5 <- read.table("accuracy_geno_sqr_neg5.csv", sep = ",")
+sqr_neg5_vec <- as.numeric(as.vector(sqr_neg5[,2]))
+mean(sqr_neg5_vec)
+#0.9222615
+
+sqr_10 <- read.table("accuracy_geno_sqr_10.csv", sep = ",")
+sqr_10_vec <- as.numeric(as.vector(sqr_10[,2]))
+mean(sqr_10_vec)
+#0.4510157
+
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shiu Rotation 2017/swgrs_DP_Lipka/accuracies/97_BayesB_acc//")
+
+imp_0.1 <- read.table("accuracy_geno_imp_0.1_BayesB.csv", sep = ",")
+imp_0.1_vec <- as.numeric(as.vector(imp_0.1[,2]))
+mean(imp_0.1_vec)
+#0.8098156
+
+imp_0.05 <- read.table("accuracy_geno_imp_0.05_BayesB.csv", sep = ",")
+imp_0.05_vec <- as.numeric(as.vector(imp_0.05[,2]))
+mean(imp_0.05_vec)
+#0.7918006
+
+imp_0.01 <- read.table("accuracy_geno_imp_0.01_BayesB.csv", sep = ",")
+imp_0.01_vec <- as.numeric(as.vector(imp_0.01[,2]))
+mean(imp_0.01_vec)
+#0.7663372
+
+imp_0.001 <- read.table("accuracy_geno_imp_0.001_BayesB.csv", sep = ",")
+imp_0.001_vec <- as.numeric(as.vector(imp_0.001[,2]))
+mean(imp_0.001_vec)
+#0.7241522
+
+imp_neg4 <- read.table("accuracy_geno_imp_neg4_BayesB.csv", sep = ",")
+imp_neg4_vec <- as.numeric(as.vector(imp_neg4[,2]))
+mean(imp_neg4_vec)
+#0.6956457
+
+imp_neg5 <- read.table("accuracy_geno_imp_neg5_BayesB.csv", sep = ",")
+imp_neg5_vec <- as.numeric(as.vector(imp_neg5[,2]))
+mean(imp_neg5_vec)
+#0.6775858
+
+imp_10 <- read.table("accuracy_geno_imp_10_BayesB.csv", sep = ",")
+imp_10_vec <- as.numeric(as.vector(imp_10[,2]))
+mean(imp_10_vec)
+#0.4029668
+
+sqr_0.1 <- read.table("accuracy_geno_sqr_0.1.csv", sep = ",")
+sqr_0.1_vec <- as.numeric(as.vector(sqr_0.1[,2]))
+mean(sqr_0.1_vec)
+#0.9518701
+
+sqr_0.05 <- read.table("accuracy_geno_sqr_0.05.csv", sep = ",")
+sqr_0.05_vec <- as.numeric(as.vector(sqr_0.05[,2]))
+mean(sqr_0.05_vec)
+#0.9619212
+
+sqr_0.01 <- read.table("accuracy_geno_sqr_0.01.csv", sep = ",")
+sqr_0.01_vec <- as.numeric(as.vector(sqr_0.01[,2]))
+mean(sqr_0.01_vec)
+#0.9692656
+
+sqr_0.001 <- read.table("accuracy_geno_sqr_0.001.csv", sep = ",")
+sqr_0.001_vec <- as.numeric(as.vector(sqr_0.001[,2]))
+mean(sqr_0.001_vec)
+#0.9595166
+
+sqr_neg4 <- read.table("accuracy_geno_sqr_neg4.csv", sep = ",")
+sqr_neg4_vec <- as.numeric(as.vector(sqr_neg4[,2]))
+mean(sqr_neg4_vec)
+#0.9413546
+
+sqr_neg5 <- read.table("accuracy_geno_sqr_neg5.csv", sep = ",")
+sqr_neg5_vec <- as.numeric(as.vector(sqr_neg5[,2]))
+mean(sqr_neg5_vec)
+#0.9181323
+
+sqr_10 <- read.table("accuracy_geno_sqr_10.csv", sep = ",")
+sqr_10_vec <- as.numeric(as.vector(sqr_10[,2]))
+mean(sqr_10_vec)
+#0.4440741
+
+
+geno_0.1 <- read.table("accuracy_geno_0.1.csv", sep = ",")
+geno_0.1_vec <- as.numeric(as.vector(geno_0.1[,2]))
+mean(geno_0.1_vec)
+#0.8228163
+
+geno_0.05 <- read.table("accuracy_geno_0.05.csv", sep = ",")
+geno_0.05_vec <- as.numeric(as.vector(geno_0.05[,2]))
+mean(geno_0.05_vec)
+#0.8179981
+
+geno_0.01 <- read.table("accuracy_geno_0.01.csv", sep = ",")
+geno_0.01_vec <- as.numeric(as.vector(geno_0.01[,2]))
+mean(geno_0.01_vec)
+#0.8179981
+
+geno_0.001 <- read.table("accuracy_geno_0.001.csv", sep = ",")
+geno_0.001_vec <- as.numeric(as.vector(geno_0.001[,2]))
+mean(geno_0.001_vec)
+#0.7286164
+
+geno_neg4 <- read.table("accuracy_geno_neg4.csv", sep = ",")
+geno_neg4_vec <- as.numeric(as.vector(geno_neg4[,2]))
+mean(geno_neg4_vec)
+#0.6858729
+
+geno_neg5 <- read.table("accuracy_geno_neg5.csv", sep = ",")
+geno_neg5_vec <- as.numeric(as.vector(geno_neg5[,2]))
+mean(geno_neg5_vec)
+#0.6695216
+
+geno_10 <- read.table("accuracy_geno_10.csv", sep = ",")
+geno_10_vec <- as.numeric(as.vector(geno_10[,2]))
+mean(geno_10_vec)
+#0.5071289
+
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shiu Rotation 2017/swgrs_DP_Lipka/RF/trait_Anthesis_Date_8632/")
+
+imp_0.1 <- read.table("geno_imp_0.1.csv", sep = ",")
+imp_0.1_vec <- as.numeric(as.vector(imp_0.1[,2]))
+mean(imp_0.1_vec)
+#
+
+imp_0.05 <- read.table("geno_imp_0.05.csv", sep = ",")
+imp_0.05_vec <- as.numeric(as.vector(imp_0.05[,2]))
+mean(imp_0.05_vec)
+#
+
+imp_0.01 <- read.table("geno_imp_0.01.csv", sep = ",")
+imp_0.01_vec <- as.numeric(as.vector(imp_0.01[,2]))
+mean(imp_0.01_vec)
+#
+
+imp_0.001 <- read.table("geno_imp_0.001.csv", sep = ",")
+imp_0.001_vec <- as.numeric(as.vector(imp_0.001[,2]))
+mean(imp_0.001_vec)
+#
+
+imp_neg4 <- read.table("geno_imp_neg4.csv", sep = ",")
+imp_neg4_vec <- as.numeric(as.vector(imp_neg4[,2]))
+mean(imp_neg4_vec)
+#
+
+imp_neg5 <- read.table("geno_imp_neg5.csv", sep = ",")
+imp_neg5_vec <- as.numeric(as.vector(imp_neg5[,2]))
+mean(imp_neg5_vec)
+#
+
+imp_10 <- read.table("geno_imp_10.csv", sep = ",")
+imp_10_vec <- as.numeric(as.vector(imp_10[,2]))
+mean(imp_10_vec)
+#
+```
+
+Subset graphs
+```{r}
+rm(list=ls(all=TRUE))
+library(tidyverse)
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shiu Rotation 2017/swgrs_DP_Lipka/RF/trait_Anthesis_Date_8632/")
+
+pccs <- read.table("PCCs.txt", sep = "\t", fill = T)
+dim(pccs)
+View(pccs)
+pccs_test <- pccs[1:28,]
+View(pccs_test)
+pcc_colnam <- c("Subset", "Loci", "Origin", "Analysis", "PCC")
+colnames(pccs_test) <- pcc_colnam
+View(pccs_test)
+pccs_test <- pccs_test[2:28,]
+View(pccs_test)
+
+pccs_test[,2] <- sapply(pccs_test[,2], as.character)
+pccs_test[,2] <- sapply(pccs_test[,2], as.numeric)
+sapply(pccs_test, class)
+
+pccs_test <- as.data.frame(pccs_test)
+
+pcc_test_plot <- pccs_test %>%
+  ggplot(aes(x=Loci, y=PCC)) +
+  geom_point()
+
+pcc_plot <- pccs_test %>%
+  ggplot(aes(x=Loci, y=PCC, color = factor(Origin), shape = factor(Analysis))) +
+  geom_point() +
+  geom_smooth(se = FALSE, method = loess, formula = y~log(x)) 
+  
+
+pcc_plot
+
+
+test <- data.frame(Loci=c(1:10), PCC=(c(1:10)))
+
+test_plot <- test %>%
+  ggplot(aes(x=Loci,y=PCC)) +
+  geom_point()
+
+test_plot
+
+pccs_num <- pccs_test
+nums <- c(1:27)
+pccs_num <- cbind(pccs_num, nums)
+View(pccs_num)
+
+num_plot <- pccs_num %>%
+  ggplot(aes(x=Loci,y=PCC)) +
+  geom_point()
+num_plot
+
+
+
+
+#for reeelz
+rm(list=ls(all=TRUE))
+library(tidyverse)
+setwd("C:/Users/aeyocca/Documents/1_MSU/Shiu Rotation 2017/swgrs_DP_Lipka/RF/trait_Anthesis_Date_8632/")
+
+pccs <- read.table("PCCs.txt", sep = "\t", fill = T)
+View(pccs)
+pcc_colnam <- c("Subset", "Loci", "Origin", "Analysis", "PCC")
+colnames(pccs) <- pcc_colnam
+View(pccs)
+pccs <- pccs[2:60,]
+View(pccs)
+
+pccs[,2] <- sapply(pccs[,2], as.character)
+pccs[,2] <- sapply(pccs[,2], as.numeric)
+sapply(pccs, class)
+
+pcc_plot <- pccs %>%
+  ggplot(aes(x=Loci, y=PCC, color = factor(Analysis), shape = factor(Origin))) +
+  geom_point(size = 2) +
+  geom_smooth(se = FALSE, method = loess, formula = y~log(x)) 
+  
+
+pcc_plot
+```
+
+
+
+
